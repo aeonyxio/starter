@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.env
+
+# Testing artifacts
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

@@ -1,0 +1,38 @@
+{% extends "govuk/template.njk" %}
+
+{% from "govuk/components/header/macro.njk" import govukHeader %}
+{% from "govuk/components/back-link/macro.njk" import govukBackLink %}
+
+{% set assetPath = "/assets" %}
+
+{% block head %}
+  <!-- Load standard GOVUK Frontend styles from CDN for ease of rendering in this standalone demo, 
+       in a real app you'd compile govuk-frontend via sass -->
+  <link rel="stylesheet" href="https://unpkg.com/govuk-frontend@5.2.0/dist/govuk/govuk-frontend.min.css">
+{% endblock %}
+
+{% block header %}
+  {{ govukHeader({
+    homepageUrl: "/",
+    serviceName: "Find someone (DWP Internal)",
+    serviceUrl: "/",
+    navigation: [
+      { href: "#", text: "Signed in as: " + user.roles[0] if user.roles else "Agent" }
+    ]
+  }) }}
+{% endblock %}
+
+{% block beforeContent %}
+  {{ govukBackLink({
+    text: "Back",
+    href: "javascript:history.back()"
+  }) }}
+{% endblock %}
+
+{% block bodyEnd %}
+  <script type="module" src="https://unpkg.com/govuk-frontend@5.2.0/dist/govuk/govuk-frontend.min.js"></script>
+  <script type="module">
+    import { initAll } from 'https://unpkg.com/govuk-frontend@5.2.0/dist/govuk/govuk-frontend.min.js'
+    initAll()
+  </script>
+{% endblock %}
