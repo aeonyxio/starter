@@ -1,37 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-	<testsuite name="Auth Middleware" time="0.005707" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
-		<testcase name="Returns 401 when x-id-token is missing" time="0.001379" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
-		<testcase name="Populates req.user when valid token is provided" time="0.001672" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
-		<testcase name="Returns 401 when token is invalid" time="0.000373" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
+	<testsuite name="Auth Middleware" time="0.006224" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="Returns 401 when x-id-token is missing" time="0.001526" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
+		<testcase name="Populates req.user when valid token is provided" time="0.001731" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
+		<testcase name="Returns 401 when token is invalid" time="0.000354" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
 	</testsuite>
-	<testsuite name="Redis Orchestrator Plugin" time="0.003438" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
-		<testcase name="skips setup gracefully if REDIS_HOST is missing" time="0.001048" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\orchestrator.test.ts"/>
-		<testcase name="registers redis correctly with string inputs and TLS" time="0.000988" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\orchestrator.test.ts"/>
-		<testcase name="registers redis correctly with null fallback values" time="0.000262" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\orchestrator.test.ts"/>
+	<testsuite name="Session Orchestrator" time="0.003278" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="falls back to memory setup safely if no REDIS_HOST or store provided" time="0.001065" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\index.test.ts"/>
+		<testcase name="prioritizes explicitly passed custom store without registering redis" time="0.000211" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\index.test.ts"/>
+		<testcase name="orchestrates redis setup properly using all available inputs" time="0.000906" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\index.test.ts"/>
 	</testsuite>
-	<testsuite name="RedisSessionStore" time="0.003821" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
-		<testcase name="get() parses data on hit and returns null on miss" time="0.001998" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
-		<testcase name="set() assigns EX parameter mathematically matching originalMaxAge" time="0.000246" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
-		<testcase name="set() omits EX parameter natively if originalMaxAge is missing" time="0.000212" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
-		<testcase name="destroy() wipes the key correctly" time="0.000284" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
+	<testsuite name="Redis Store Factory" time="0.005555" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="get retrieves and parses data" time="0.002133" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
+		<testcase name="get returns null on miss" time="0.000529" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
+		<testcase name="set applies EX parameter matching originalMaxAge mathematically" time="0.000581" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
+		<testcase name="set omits EX if originalMaxAge is missing" time="0.000394" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
+		<testcase name="destroy removes the key correctly" time="0.000435" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\redis-store.test.ts"/>
 	</testsuite>
-	<testsuite name="Session Plugin" time="0.003675" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
-		<testcase name="registers session with correct ttl and development secure flag" time="0.001175" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
-		<testcase name="removes maxAge natively when disableTimeout is true" time="0.000320" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
-		<testcase name="applies production secure flag correctly" time="0.000488" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
-		<testcase name="maps custom store explicitly if provided" time="0.000455" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
+	<testsuite name="Session Plugin" time="0.005995" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="registers session with correct ttl and development secure flag" time="0.003058" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
+		<testcase name="removes maxAge natively when disableTimeout is true" time="0.000517" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
+		<testcase name="applies production secure flag correctly" time="0.000241" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
+		<testcase name="maps custom store explicitly if provided" time="0.000342" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session.test.ts"/>
 	</testsuite>
-	<testsuite name="CitizenService" time="0.007596" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
-		<testcase name="returns parsed JSON on successful search fetch" time="0.004796" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\services\citizen.test.ts"/>
-		<testcase name="throws error on non-ok response" time="0.000834" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\services\citizen.test.ts"/>
+	<testsuite name="CitizenService" time="0.004695" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="returns parsed JSON on successful search fetch" time="0.002455" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\services\citizen.test.ts"/>
+		<testcase name="throws error on non-ok response" time="0.000786" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\services\citizen.test.ts"/>
 	</testsuite>
-	<!-- tests 16 -->
+	<!-- tests 17 -->
 	<!-- suites 5 -->
-	<!-- pass 16 -->
+	<!-- pass 17 -->
 	<!-- fail 0 -->
 	<!-- cancelled 0 -->
 	<!-- skipped 0 -->
 	<!-- todo 0 -->
-	<!-- duration_ms 520.7332 -->
+	<!-- duration_ms 511.5596 -->
 </testsuites>

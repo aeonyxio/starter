@@ -1,18 +1,19 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { RedisSessionStore } from "./redis-store.js";
+import { createRedisStore } from "./redis-store.js";
 import type { FastifyInstance } from "fastify";
+import type { SessionStore } from "@fastify/session";
 
-interface MockRedisCall {
-  method: string;
-  args: unknown[];
+interface AsyncSessionStore extends SessionStore {
+  get(sessionId: string): Promise<unknown>;
+  set(sessionId: string, session: unknown): Promise<void>;
+  destroy(sessionId: string): Promise<void>;
 }
 
-describe("RedisSessionStore", () => {
+describe("Redis Store Factory", () => {
   let mockFastify: FastifyInstance;
-  let redisCalls: MockRedisCall[] = [];
+  let redisCalls: { method: string; args: unknown[] }[] = [];
   let redisGetMock: (id: string) => Promise<string | null>;
-  let store: RedisSessionStore;
 
   beforeEach(() => {
     redisCalls = [];
@@ -33,37 +34,40 @@ describe("RedisSessionStore", () => {
           return 1;
         },
       } as unknown,
-    } as unknown as FastifyInstance;
-
-    store = new RedisSessionStore(mockFastify);
+    } as FastifyInstance;
   });
 
-  test("get() parses data on hit and returns null on miss", async () => {
+  test("get retrieves and parses data", async () => {
+    const store = createRedisStore(mockFastify) as AsyncSessionStore;
     redisGetMock = async () => JSON.stringify({ user: "tester" });
-    let result = await store.get("sid-123");
-    assert.deepEqual(result, { user: "tester" });
 
-    redisGetMock = async () => null;
-    result = await store.get("sid-456");
+    const result = await store.get("sid-123");
+    assert.deepEqual(result, { user: "tester" });
+  });
+
+  test("get returns null on miss", async () => {
+    const store = createRedisStore(mockFastify) as AsyncSessionStore;
+    const result = await store.get("sid-456");
     assert.strictEqual(result, null);
   });
 
-  test("set() assigns EX parameter mathematically matching originalMaxAge", async () => {
-    const mockSession = { cookie: { originalMaxAge: 15000 } };
-    await store.set("sid-123", mockSession);
+  test("set applies EX parameter matching originalMaxAge mathematically", async () => {
+    const store = createRedisStore(mockFastify) as AsyncSessionStore;
+    await store.set("sid-123", { cookie: { originalMaxAge: 15000 } });
 
     assert.strictEqual(redisCalls[0].args[2], "EX");
-    assert.strictEqual(redisCalls[0].args[3], 15); // Bounded to 15s
+    assert.strictEqual(redisCalls[0].args[3], 15);
   });
 
-  test("set() omits EX parameter natively if originalMaxAge is missing", async () => {
-    const mockSession = { cookie: {} }; // No originalMaxAge
-    await store.set("sid-123", mockSession);
+  test("set omits EX if originalMaxAge is missing", async () => {
+    const store = createRedisStore(mockFastify) as AsyncSessionStore;
+    await store.set("sid-123", { cookie: {} });
 
     assert.strictEqual(redisCalls[0].args[2], undefined);
   });
 
-  test("destroy() wipes the key correctly", async () => {
+  test("destroy removes the key correctly", async () => {
+    const store = createRedisStore(mockFastify) as AsyncSessionStore;
     await store.destroy("sid-123");
 
     assert.strictEqual(redisCalls[0].method, "del");
