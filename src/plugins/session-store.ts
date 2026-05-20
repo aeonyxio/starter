@@ -9,11 +9,11 @@ export interface AppSessionOptions {
   SESSION_COOKIE_SECRET?: string;
   SESSION_TTL?: number;
   SESSION_DISABLE_EXPIRY?: boolean;
-  REDIS_HOST?: string;
-  REDIS_PORT?: number;
-  REDIS_PASSWORD?: string;
-  REDIS_PREFIX?: string;
-  REDIS_TTS?: unknown; // Maps natively to TLS config if provided
+  REDIS_TLS: boolean; // Mandatory boolean
+  REDIS_HOST?: string | null;
+  REDIS_PORT?: string | number | null;
+  REDIS_PASSWORD?: string | null;
+  REDIS_PREFIX?: string | null;
   store?: SessionStore | null;
 }
 
@@ -52,12 +52,12 @@ export const sessionSetup: FastifyPluginAsync<AppSessionOptions> = async (
     // 2. Setup Redis Store Elegantly
     const redisOptions: Record<string, unknown> = {
       host: options.REDIS_HOST,
-      port: options.REDIS_PORT ?? 6379,
+      port: options.REDIS_PORT ? Number(options.REDIS_PORT) : 6379,
     };
 
     if (options.REDIS_PASSWORD) redisOptions.password = options.REDIS_PASSWORD;
     if (options.REDIS_PREFIX) redisOptions.keyPrefix = options.REDIS_PREFIX;
-    if (options.REDIS_TTS !== undefined) redisOptions.tls = options.REDIS_TTS;
+    if (options.REDIS_TLS) redisOptions.tls = {}; // Activates TLS internally for ioredis
 
     await fastify.register(fastifyRedis, redisOptions);
 
