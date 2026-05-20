@@ -1,180 +1,184 @@
-import { test, describe, beforeEach, afterEach } from "node:test";
+import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { sessionSetup } from "./session-store.js";
+import { sessionSetup, type AppSessionOptions } from "./session-store.js";
 import type { FastifyInstance } from "fastify";
+import type { SessionStore } from "@fastify/session";
 
-describe("AppSession Plugin", () => {
-  let mockFastify: any; // Test double instance
-  let redisCalls: { method: string; args: any[] }[] = [];
-  let registeredPlugins: { plugin: any; opts: any }[] = [];
-  let mockHasCookie = false;
+interface MockPluginCall {
+  plugin: unknown;
+  opts: Record<string, unknown>;
+}
+
+interface MockRedisCall {
+  method: string;
+  args: unknown[];
+}
+
+describe("AppSession Plugin Options Layout", () => {
+  let mockFastify: FastifyInstance;
+  let redisCalls: MockRedisCall[] = [];
+  let registeredPlugins: MockPluginCall[] = [];
   let redisGetMock: (id: string) => Promise<string | null>;
 
   beforeEach(() => {
-    // Reset test trackers
     redisCalls = [];
     registeredPlugins = [];
-    mockHasCookie = false;
     redisGetMock = async () => null;
 
+    // Strict typing avoiding `any`
     mockFastify = {
-      hasPlugin: (name: string) =>
-        name === "@fastify/cookie" ? mockHasCookie : false,
-      register: async (plugin: any, opts: any) => {
-        registeredPlugins.push({ plugin, opts });
+      register: async (plugin: unknown, opts: unknown) => {
+        registeredPlugins.push({
+          plugin,
+          opts: opts as Record<string, unknown>,
+        });
       },
       redis: {
-        get: async (...args: any[]) => {
-          redisCalls.push({ method: "get", args });
-          return redisGetMock(args[0]);
+        get: async (id: string) => {
+          redisCalls.push({ method: "get", args: [id] });
+          return redisGetMock(id);
         },
-        set: async (...args: any[]) => {
+        set: async (...args: unknown[]) => {
           redisCalls.push({ method: "set", args });
           return "OK";
         },
-        del: async (...args: any[]) => {
+        del: async (...args: unknown[]) => {
           redisCalls.push({ method: "del", args });
           return 1;
         },
-      },
-    };
+      } as unknown,
+    } as unknown as FastifyInstance;
 
-    // Clear dynamic environment configurations
-    delete process.env.HOST;
-    delete process.env.REDIS_PORT;
-    delete process.env.SESSION_SECRET;
     delete process.env.NODE_ENV;
   });
 
-  test("registers cookie plugin if not present", async () => {
-    mockHasCookie = false;
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    assert.strictEqual(registeredPlugins.length, 2); // Cookie + Session
-  });
-
-  test("skips registering cookie plugin if already present", async () => {
-    mockHasCookie = true;
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    assert.strictEqual(registeredPlugins.length, 1); // Session only
-  });
-
-  test("applies sensible defaults for development without redis", async () => {
-    mockHasCookie = true;
-    process.env.NODE_ENV = "development";
-
-    await sessionSetup(mockFastify as FastifyInstance, {});
-
+  test("applies sensible fallback defaults for memory setup", async () => {
+    await sessionSetup(mockFastify, {});
     const sessionCall = registeredPlugins[0];
+
     assert.strictEqual(sessionCall.opts.cookieName, "sessionId");
     assert.strictEqual(
       sessionCall.opts.secret,
       "a-very-strong-secret-key-that-is-at-least-32-chars",
     );
-    assert.strictEqual(sessionCall.opts.cookie.secure, false);
-    assert.strictEqual(sessionCall.opts.store, undefined); // Auto fallback to in-memory mode!
+    assert.strictEqual(
+      (sessionCall.opts.cookie as Record<string, unknown>).maxAge,
+      86400000,
+    );
+    assert.strictEqual(sessionCall.opts.store, undefined);
   });
 
-  test("uses environment configurations & production flags correctly", async () => {
-    mockHasCookie = true;
-    process.env.SESSION_SECRET = "env-secret";
+  test("prioritizes explicit options setup correctly", async () => {
     process.env.NODE_ENV = "production";
 
-    await sessionSetup(mockFastify as FastifyInstance, {
-      cookieName: "customCookie",
-      secret: "option-secret", // ENV has higher precedence over this
+    await sessionSetup(mockFastify, {
+      SESSION_COOKIE_NAME: "customSession",
+      SESSION_COOKIE_SECRET: "super-secret",
+      SESSION_TTL: 3600000,
     });
 
     const sessionCall = registeredPlugins[0];
-    assert.strictEqual(sessionCall.opts.cookieName, "customCookie");
-    assert.strictEqual(sessionCall.opts.secret, "env-secret");
-    assert.strictEqual(sessionCall.opts.cookie.secure, true);
+    assert.strictEqual(sessionCall.opts.cookieName, "customSession");
+    assert.strictEqual(sessionCall.opts.secret, "super-secret");
+    assert.strictEqual(
+      (sessionCall.opts.cookie as Record<string, unknown>).maxAge,
+      3600000,
+    );
+    assert.strictEqual(
+      (sessionCall.opts.cookie as Record<string, unknown>).secure,
+      true,
+    );
   });
 
-  test("registers redis and attaches custom store adapter when HOST is provided", async () => {
-    mockHasCookie = true;
-    process.env.HOST = "localhost";
-    process.env.REDIS_PORT = "6380";
+  test("removes maxAge natively when SESSION_DISABLE_EXPIRY is true", async () => {
+    await sessionSetup(mockFastify, { SESSION_DISABLE_EXPIRY: true });
+    const sessionCall = registeredPlugins[0];
+    assert.strictEqual(
+      (sessionCall.opts.cookie as Record<string, unknown>).maxAge,
+      undefined,
+    );
+  });
 
-    await sessionSetup(mockFastify as FastifyInstance, {});
+  test("uses explicitly passed custom store without registering redis", async () => {
+    const customStore = {} as SessionStore;
+    await sessionSetup(mockFastify, { store: customStore });
+
+    assert.strictEqual(registeredPlugins.length, 1);
+    assert.strictEqual(registeredPlugins[0].opts.store, customStore);
+  });
+
+  test("registers redis correctly with full configuration", async () => {
+    const opts: AppSessionOptions = {
+      REDIS_HOST: "127.0.0.1",
+      REDIS_PORT: 6380,
+      REDIS_PASSWORD: "redis-pass",
+      REDIS_PREFIX: "sess:",
+      REDIS_TTS: { rejectUnauthorized: false }, // TLS Mock
+    };
+
+    await sessionSetup(mockFastify, opts);
 
     const redisCall = registeredPlugins[0];
     const sessionCall = registeredPlugins[1];
 
-    assert.strictEqual(redisCall.opts.host, "localhost");
+    assert.strictEqual(redisCall.opts.host, "127.0.0.1");
     assert.strictEqual(redisCall.opts.port, 6380);
+    assert.strictEqual(redisCall.opts.password, "redis-pass");
+    assert.strictEqual(redisCall.opts.keyPrefix, "sess:");
+    assert.deepEqual(redisCall.opts.tls, { rejectUnauthorized: false });
     assert.ok(sessionCall.opts.store !== undefined);
   });
 
-  test("uses default redis port when REDIS_PORT is missing", async () => {
-    mockHasCookie = true;
-    process.env.HOST = "localhost";
+  test("store.get parses data on hit and returns null on miss", async () => {
+    await sessionSetup(mockFastify, { REDIS_HOST: "localhost" });
+    const store = registeredPlugins[1].opts.store as Record<string, Function>;
 
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    assert.strictEqual(registeredPlugins[0].opts.port, 6379);
-  });
-
-  test("store.get retrieves and successfully parses stringified redis data", async () => {
-    mockHasCookie = true;
-    process.env.HOST = "localhost";
     redisGetMock = async () => JSON.stringify({ user: "typescript-dev" });
-
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    const store = registeredPlugins[1].opts.store;
-
-    const result = await store.get("sid-123");
+    let result = await store.get("sid-123");
     assert.deepEqual(result, { user: "typescript-dev" });
-    assert.strictEqual(redisCalls[0].method, "get");
-    assert.strictEqual(redisCalls[0].args[0], "sid-123");
-  });
 
-  test("store.get returns null gracefully when key does not exist", async () => {
-    mockHasCookie = true;
-    process.env.HOST = "localhost";
     redisGetMock = async () => null;
-
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    const store = registeredPlugins[1].opts.store;
-
-    const result = await store.get("sid-123");
+    result = await store.get("sid-456");
     assert.strictEqual(result, null);
   });
 
-  test("store.set assigns correct TTL derived from cookie.originalMaxAge", async () => {
-    mockHasCookie = true;
-    process.env.HOST = "localhost";
+  test("store.set sets TTL explicitly with originalMaxAge", async () => {
+    await sessionSetup(mockFastify, { REDIS_HOST: "localhost" });
+    const store = registeredPlugins[1].opts.store as Record<string, Function>;
 
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    const store = registeredPlugins[1].opts.store;
-
-    const mockSession = { cookie: { originalMaxAge: 10000 }, viewCount: 1 };
+    const mockSession = { cookie: { originalMaxAge: 20000 } };
     await store.set("sid-123", mockSession);
 
-    assert.strictEqual(redisCalls[0].method, "set");
-    assert.strictEqual(redisCalls[0].args[0], "sid-123");
-    assert.strictEqual(redisCalls[0].args[1], JSON.stringify(mockSession));
     assert.strictEqual(redisCalls[0].args[2], "EX");
-    assert.strictEqual(redisCalls[0].args[3], 10); // Extrapolated safely (10000ms -> 10s)
+    assert.strictEqual(redisCalls[0].args[3], 20); // 20000ms mathematically bounded to 20s
   });
 
-  test("store.set falls back to 1-day TTL if originalMaxAge is missing", async () => {
-    mockHasCookie = true;
-    process.env.HOST = "localhost";
+  test("store.set omits EX parameter if SESSION_DISABLE_EXPIRY is true", async () => {
+    await sessionSetup(mockFastify, {
+      REDIS_HOST: "localhost",
+      SESSION_DISABLE_EXPIRY: true,
+    });
+    const store = registeredPlugins[1].opts.store as Record<string, Function>;
 
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    const store = registeredPlugins[1].opts.store;
+    const mockSession = { cookie: { originalMaxAge: 20000 } };
+    await store.set("sid-123", mockSession);
 
-    await store.set("sid-123", { noCookieInfo: true }); // Missing cookie attribute completely
-
-    assert.strictEqual(redisCalls[0].method, "set");
-    assert.strictEqual(redisCalls[0].args[3], 86400); // 1 Day in seconds
+    assert.strictEqual(redisCalls[0].args[2], undefined); // No EX mapped
   });
 
-  test("store.destroy deletes session key from redis successfully", async () => {
-    mockHasCookie = true;
-    process.env.HOST = "localhost";
+  test("store.set omits EX parameter if cookie info is missing completely", async () => {
+    await sessionSetup(mockFastify, { REDIS_HOST: "localhost" });
+    const store = registeredPlugins[1].opts.store as Record<string, Function>;
 
-    await sessionSetup(mockFastify as FastifyInstance, {});
-    const store = registeredPlugins[1].opts.store;
+    const mockSession = { malformed: true }; // No cookie info
+    await store.set("sid-123", mockSession);
+
+    assert.strictEqual(redisCalls[0].args[2], undefined);
+  });
+
+  test("store.destroy wipes the key correctly", async () => {
+    await sessionSetup(mockFastify, { REDIS_HOST: "localhost" });
+    const store = registeredPlugins[1].opts.store as Record<string, Function>;
 
     await store.destroy("sid-123");
 
