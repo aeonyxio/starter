@@ -40,7 +40,6 @@ describe("Session Orchestrator", () => {
       "a-very-strong-secret-key-that-is-at-least-32-chars",
     );
     assert.strictEqual(sessionCall.opts.ttl, 86400000);
-    assert.strictEqual(sessionCall.opts.disableTimeout, false);
     assert.strictEqual(sessionCall.opts.store, undefined);
   });
 
@@ -62,7 +61,6 @@ describe("Session Orchestrator", () => {
       SESSION_COOKIE_NAME: "customName",
       SESSION_COOKIE_SECRET: "super-secret",
       SESSION_TTL: 3600000,
-      SESSION_DISABLE_EXPIRY: true,
       REDIS_HOST: "127.0.0.1",
       REDIS_PORT: "6380",
       REDIS_PASSWORD: "pass",
@@ -86,7 +84,6 @@ describe("Session Orchestrator", () => {
     assert.strictEqual(sessionCall.opts.cookieName, "customName");
     assert.strictEqual(sessionCall.opts.secret, "super-secret");
     assert.strictEqual(sessionCall.opts.ttl, 3600000);
-    assert.strictEqual(sessionCall.opts.disableTimeout, true);
     assert.ok(sessionCall.opts.store !== undefined);
   });
 });

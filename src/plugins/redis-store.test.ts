@@ -1,14 +1,11 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createRedisStore } from "./redis-store.js";
+import {
+  createRedisStore,
+  type SessionType,
+  type RedisStoreOptions,
+} from "./redis-store.js";
 import type { FastifyInstance } from "fastify";
-import type { SessionStore } from "@fastify/session";
-
-interface AsyncSessionStore extends SessionStore {
-  get(sessionId: string): Promise<unknown>;
-  set(sessionId: string, session: unknown): Promise<void>;
-  destroy(sessionId: string): Promise<void>;
-}
 
 describe("Redis Store Factory", () => {
   let mockFastify: FastifyInstance;
@@ -33,44 +30,121 @@ describe("Redis Store Factory", () => {
           redisCalls.push({ method: "del", args });
           return 1;
         },
+        expire: async (...args: unknown[]) => {
+          redisCalls.push({ method: "expire", args });
+          return 1;
+        },
       } as unknown,
     } as FastifyInstance;
   });
 
-  test("get retrieves and parses data", async () => {
-    const store = createRedisStore(mockFastify) as AsyncSessionStore;
-    redisGetMock = async () => JSON.stringify({ user: "tester" });
+  function createAsyncStore(options?: RedisStoreOptions) {
+    const store = createRedisStore(mockFastify, options);
+
+    return {
+      get: (id: string) =>
+        new Promise<SessionType | null | undefined>((resolve, reject) =>
+          store.get(id, (err, result) =>
+            err
+              ? reject(err)
+              : resolve(result as SessionType | null | undefined),
+          ),
+        ),
+      set: (id: string, session: SessionType) =>
+        new Promise<void>((resolve, reject) =>
+          store.set(id, session, (err) => (err ? reject(err) : resolve())),
+        ),
+      destroy: (id: string) =>
+        new Promise<void>((resolve, reject) =>
+          store.destroy(id, (err) => (err ? reject(err) : resolve())),
+        ),
+      touch: (id: string, session: SessionType) =>
+        new Promise<void>((resolve, reject) =>
+          store.touch(id, session, (err) => (err ? reject(err) : resolve())),
+        ),
+    };
+  }
+
+  test("get retrieves and parses data with correct prefix", async () => {
+    const store = createAsyncStore();
+    redisGetMock = async () => JSON.stringify({ user: "tester", cookie: {} });
 
     const result = await store.get("sid-123");
-    assert.deepEqual(result, { user: "tester" });
+
+    assert.strictEqual(redisCalls[0].args[0], "sess:sid-123");
+    assert.deepEqual(result, { user: "tester", cookie: {} });
   });
 
-  test("get returns null on miss", async () => {
-    const store = createRedisStore(mockFastify) as AsyncSessionStore;
-    const result = await store.get("sid-456");
-    assert.strictEqual(result, null);
+  test("get rejects gracefully on invalid JSON", async () => {
+    const store = createAsyncStore();
+    redisGetMock = async () => "{ broken json: ";
+    await assert.rejects(store.get("sid-123"), SyntaxError);
   });
 
   test("set applies EX parameter matching originalMaxAge mathematically", async () => {
-    const store = createRedisStore(mockFastify) as AsyncSessionStore;
-    await store.set("sid-123", { cookie: { originalMaxAge: 15000 } });
+    const store = createAsyncStore();
+    const mockSession = { cookie: { originalMaxAge: 15000 } } as SessionType;
+    await store.set("sid-123", mockSession);
 
+    assert.strictEqual(redisCalls[0].method, "set");
+    assert.strictEqual(redisCalls[0].args[0], "sess:sid-123");
     assert.strictEqual(redisCalls[0].args[2], "EX");
     assert.strictEqual(redisCalls[0].args[3], 15);
   });
 
-  test("set omits EX if originalMaxAge is missing", async () => {
-    const store = createRedisStore(mockFastify) as AsyncSessionStore;
-    await store.set("sid-123", { cookie: {} });
+  test("set falls back to default TTL if originalMaxAge is missing (fixes memory leak)", async () => {
+    const store = createAsyncStore();
+    const mockSession = { cookie: {} } as SessionType;
+    await store.set("sid-123", mockSession);
 
-    assert.strictEqual(redisCalls[0].args[2], undefined);
+    assert.strictEqual(redisCalls[0].method, "set");
+    assert.strictEqual(redisCalls[0].args[2], "EX");
+    assert.strictEqual(redisCalls[0].args[3], 86400);
   });
 
-  test("destroy removes the key correctly", async () => {
-    const store = createRedisStore(mockFastify) as AsyncSessionStore;
+  test("set handles zero originalMaxAge without skipping EX parameter", async () => {
+    const store = createAsyncStore();
+    const mockSession = { cookie: { originalMaxAge: 0 } } as SessionType;
+    await store.set("sid-123", mockSession);
+
+    assert.strictEqual(redisCalls[0].method, "set");
+    assert.strictEqual(redisCalls[0].args[2], "EX");
+    assert.strictEqual(redisCalls[0].args[3], 1);
+  });
+
+  test("destroy removes the key correctly using prefix", async () => {
+    const store = createAsyncStore();
     await store.destroy("sid-123");
 
     assert.strictEqual(redisCalls[0].method, "del");
-    assert.strictEqual(redisCalls[0].args[0], "sid-123");
+    assert.strictEqual(redisCalls[0].args[0], "sess:sid-123");
+  });
+
+  test("touch updates TTL via expire command", async () => {
+    const store = createAsyncStore();
+    const mockSession = { cookie: { originalMaxAge: 25000 } } as SessionType;
+    await store.touch("sid-123", mockSession);
+
+    assert.strictEqual(redisCalls[0].method, "expire");
+    assert.strictEqual(redisCalls[0].args[0], "sess:sid-123");
+    assert.strictEqual(redisCalls[0].args[1], 25);
+  });
+
+  test("touch applies default TTL if originalMaxAge is missing", async () => {
+    const store = createAsyncStore();
+    const mockSession = { cookie: {} } as SessionType;
+    await store.touch("sid-123", mockSession);
+
+    assert.strictEqual(redisCalls[0].method, "expire");
+    assert.strictEqual(redisCalls[0].args[1], 86400);
+  });
+
+  test("supports custom prefixes and TTL via options", async () => {
+    const store = createAsyncStore({ prefix: "custom:", ttl: 3600 });
+    const mockSession = { cookie: {} } as SessionType;
+    await store.set("sid-123", mockSession);
+
+    assert.strictEqual(redisCalls[0].args[0], "custom:sid-123");
+    assert.strictEqual(redisCalls[0].args[3], 3600);
   });
 });

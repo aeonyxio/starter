@@ -31,7 +31,6 @@ describe("Session Plugin", () => {
       cookieName: "myCookie",
       secret: "super-secret",
       ttl: 3600,
-      disableTimeout: false,
     };
 
     await sessionSetup(mockFastify, opts);
@@ -50,23 +49,6 @@ describe("Session Plugin", () => {
     assert.strictEqual(sessionCall.opts.store, undefined);
   });
 
-  test("removes maxAge natively when disableTimeout is true", async () => {
-    const opts: AppSessionOptions = {
-      cookieName: "myCookie",
-      secret: "super-secret",
-      ttl: 3600,
-      disableTimeout: true,
-    };
-
-    await sessionSetup(mockFastify, opts);
-
-    const sessionCall = registeredPlugins[0];
-    assert.strictEqual(
-      (sessionCall.opts.cookie as Record<string, unknown>).maxAge,
-      undefined,
-    );
-  });
-
   test("applies production secure flag correctly", async () => {
     process.env.NODE_ENV = "production";
 
@@ -74,7 +56,6 @@ describe("Session Plugin", () => {
       cookieName: "myCookie",
       secret: "super-secret",
       ttl: 3600,
-      disableTimeout: false,
     };
 
     await sessionSetup(mockFastify, opts);
@@ -93,7 +74,6 @@ describe("Session Plugin", () => {
       cookieName: "myCookie",
       secret: "super-secret",
       ttl: 3600,
-      disableTimeout: false,
       store: customStore,
     };
 

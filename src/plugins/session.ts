@@ -8,7 +8,6 @@ export interface AppSessionOptions {
   secret: string;
   ttl: number;
   store?: SessionStore | null;
-  disableTimeout: boolean;
 }
 
 export const sessionSetup: FastifyPluginAsync<AppSessionOptions> = async (
@@ -20,16 +19,10 @@ export const sessionSetup: FastifyPluginAsync<AppSessionOptions> = async (
     cookieName: options.cookieName,
     cookie: {
       secure: process.env.NODE_ENV === "production",
+      maxAge: options.ttl,
     },
     saveUninitialized: false,
   };
-
-  // Handle timeout/TTL logic cleanly
-  if (options.disableTimeout) {
-    sessionOptions.cookie!.maxAge = undefined;
-  } else {
-    sessionOptions.cookie!.maxAge = options.ttl;
-  }
 
   if (options.store) {
     sessionOptions.store = options.store;

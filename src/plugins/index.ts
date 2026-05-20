@@ -9,7 +9,6 @@ export interface OrchestratorOptions {
   SESSION_COOKIE_NAME?: string;
   SESSION_COOKIE_SECRET?: string;
   SESSION_TTL?: number;
-  SESSION_DISABLE_EXPIRY?: boolean;
   REDIS_TLS: boolean;
   REDIS_HOST?: string | null;
   REDIS_PORT?: string | number | null;
@@ -24,7 +23,6 @@ const orchestratorSetup: FastifyPluginAsync<OrchestratorOptions> = async (
 ) => {
   let resolvedStore: SessionStore | undefined = options.store ?? undefined;
 
-  // If no explicit store is given but REDIS_HOST exists, orchestrate Redis setup
   if (!resolvedStore && options.REDIS_HOST) {
     const redisOptions: Record<string, unknown> = {
       host: options.REDIS_HOST,
@@ -32,21 +30,28 @@ const orchestratorSetup: FastifyPluginAsync<OrchestratorOptions> = async (
     };
 
     if (options.REDIS_PASSWORD) redisOptions.password = options.REDIS_PASSWORD;
+    // Note: ioredis automatically prepends this prefix to EVERY command.
     if (options.REDIS_PREFIX) redisOptions.keyPrefix = options.REDIS_PREFIX;
     if (options.REDIS_TLS) redisOptions.tls = {};
 
     await fastify.register(fastifyRedis, redisOptions);
-    resolvedStore = createRedisStore(fastify);
+
+    // Pass the TTL intent down to the store!
+    resolvedStore = createRedisStore(fastify, {
+      // Convert ms to seconds. Default to 86400 (24h) to match sessionSetup below
+      ttl:
+        options.SESSION_TTL != null
+          ? Math.ceil(options.SESSION_TTL / 1000)
+          : 86400,
+    });
   }
 
-  // Register the core session plugin using cleanly mapped arguments
   await fastify.register(sessionSetup, {
     cookieName: options.SESSION_COOKIE_NAME || "sessionId",
     secret:
       options.SESSION_COOKIE_SECRET ||
       "a-very-strong-secret-key-that-is-at-least-32-chars",
     ttl: options.SESSION_TTL ?? 86400000,
-    disableTimeout: options.SESSION_DISABLE_EXPIRY ?? false,
     store: resolvedStore,
   });
 };
