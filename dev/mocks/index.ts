@@ -1,8 +1,8 @@
 import { FastifyInstance } from 'fastify';
-import { citizenMocks } from './citizen';
-import { paymentMocks } from './payment';
-import { healthMocks } from './health';
-import { communicationMocks } from './communication';
+import { citizenMocks } from './citizen/index.js';
+import { paymentMocks } from './payment/index.js';
+import { healthMocks } from './health/index.js';
+import { communicationMocks } from './communication/index.js';
 
 /**
  * Registers all mock backend APIs. 

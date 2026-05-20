@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testsuite name="Auth Middleware" time="0.003380" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="Returns 401 when x-id-token is missing" time="0.000991" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
+		<testcase name="Populates req.user when valid token is provided" time="0.001038" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
+		<testcase name="Returns 401 when token is invalid" time="0.000205" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\middleware\auth.test.ts"/>
+	</testsuite>
+	<testsuite name="AppSession Plugin" time="0.006385" disabled="0" errors="0" tests="11" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="registers cookie plugin if not present" time="0.001415" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="skips registering cookie plugin if already present" time="0.000240" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="applies sensible defaults for development without redis" time="0.000318" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="uses environment configurations &amp; production flags correctly" time="0.000272" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="registers redis and attaches custom store adapter when HOST is provided" time="0.000366" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="uses default redis port when REDIS_PORT is missing" time="0.000228" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="store.get retrieves and successfully parses stringified redis data" time="0.001136" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="store.get returns null gracefully when key does not exist" time="0.000291" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="store.set assigns correct TTL derived from cookie.originalMaxAge" time="0.000340" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="store.set falls back to 1-day TTL if originalMaxAge is missing" time="0.000228" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+		<testcase name="store.destroy deletes session key from redis successfully" time="0.000233" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\plugins\session-store.test.ts"/>
+	</testsuite>
+	<testsuite name="CitizenService" time="0.005273" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="DESKTOP-OPQM558">
+		<testcase name="returns parsed JSON on successful search fetch" time="0.003167" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\services\citizen.test.ts"/>
+		<testcase name="throws error on non-ok response" time="0.000874" classname="test" file="C:\Users\Ton\Documents\ll\starter\src\services\citizen.test.ts"/>
+	</testsuite>
+	<!-- tests 16 -->
+	<!-- suites 3 -->
+	<!-- pass 16 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 2047.2065 -->
+</testsuites>

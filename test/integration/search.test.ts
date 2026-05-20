@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import Fastify from 'fastify';
-import { getTestApp, createMockJwt } from '../helpers';
+import { getTestApp, createMockJwt } from '../../src/test-utils.js';
 
 describe('Search Integration Tests (Fastify Inject)', () => {
   let app: any;
@@ -10,13 +10,13 @@ describe('Search Integration Tests (Fastify Inject)', () => {
   before(async () => {
     // Spin up a mock backend to catch API calls
     mockBackend = Fastify();
-    mockBackend.get('/api/people', async () => {
+    mockBackend.get('/api/citizen/search', async () => {
       return [{ id: '1', name: 'Mock Person', nino: 'AA111111A', status: 'Active' }];
     });
     await mockBackend.listen({ port: 0 });
     const apiUrl = `http://localhost:${mockBackend.server.address().port}`;
 
-    app = getTestApp(apiUrl);
+    app = await getTestApp(apiUrl);
     await app.ready();
   });
 

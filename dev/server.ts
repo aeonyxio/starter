@@ -1,44 +1,50 @@
 import Fastify from 'fastify';
 import IORedisMock from 'ioredis-mock';
-import { buildApp } from '../src/app';
+import { buildApp } from '../src/app.js';
+import { registerMocks } from './mocks/index.js';
 
-// 1. Stand up a Fake Backend API
-async function startFakeBackend() {
-  const backend = Fastify();
-  
-  backend.get('/api/people', async (req, reply) => {
-    const q = (req.query as any).q?.toLowerCase() || '';
-    
-    // Mock Database
-    const db = [
-      { id: '1', name: 'Jane Doe', nino: 'QQ123456C', status: 'Active' },
-      { id: '2', name: 'John Smith', nino: 'AB987654D', status: 'Inactive' }
-    ];
+import { CitizenService } from '../src/services/citizen.js';
+import { PaymentService } from '../src/services/payment.js';
+import { HealthService } from '../src/services/health.js';
+import { CommunicationService } from '../src/services/communication.js';
 
-    const results = db.filter(p => p.name.toLowerCase().includes(q) || p.nino.toLowerCase().includes(q));
-    return results;
-  });
-
-  await backend.listen({ port: 3001 });
-  console.log('Mock Backend API listening on http://localhost:3001');
-}
-
-// 2. Wrap and start the Main App
 async function startDevServer() {
-  await startFakeBackend();
+  // 1. Stand up the Mock Backend resolving all 4 API Domains
+  const backend = Fastify();
+  await registerMocks(backend);
+  await backend.listen({ port: 3001 });
+  console.log('All Mock Backend APIs listening on http://localhost:3001');
 
-  // Mock Redis for Session handling
+  // 2. Initialize App Services (pointing to the local mock backend)
+  const services = {
+    citizen: new CitizenService('http://localhost:3001'),
+    payment: new PaymentService('http://localhost:3001'),
+    health: new HealthService('http://localhost:3001'),
+    communication: new CommunicationService('http://localhost:3001')
+  };
+
+  // 3. Wrap and start the Main App with mocked Redis
   const mockRedisClient = new IORedisMock();
 
-  const app = buildApp({
-    redisClient: mockRedisClient as any,
-    apiUrl: 'http://localhost:3001'
+  const app = await buildApp({
+    redis: { client: mockRedisClient, closeClient: false },
+    services,
+    sessionSecret: 'dev-secret-key-that-is-at-least-32-characters!!',
+    cookieSecure: false,
+  });
+
+  // Inject a mock token for local development to bypass auth manually
+  app.addHook('onRequest', async (req) => {
+    if (!req.headers['x-id-token']) {
+      const payload = { sub: 'dev-user-123', roles: ['agent'] };
+      const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+      req.headers['x-id-token'] = `header.${base64Payload}.signature`;
+    }
   });
 
   try {
     await app.listen({ port: 3000 });
-    console.log('GOV.UK Find Someone running locally at http://localhost:3000');
-    console.log('Ensure you pass the x-id-token header for manual API testing!');
+    console.log('GOV.UK App running locally at http://localhost:3000');
   } catch (err) {
     app.log.error(err);
     process.exit(1);

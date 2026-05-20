@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { authMiddleware } from './auth';
+import { authMiddleware } from './auth.js';
 import { FastifyRequest, FastifyReply } from 'fastify';
 
 describe('Auth Middleware', () => {

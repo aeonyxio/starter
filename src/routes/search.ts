@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { AppServices } from '../app';
+import { AppServices } from '../app.js';
 
 export async function searchRoutes(app: FastifyInstance, options: { services: AppServices }) {
   const { citizen } = options.services;

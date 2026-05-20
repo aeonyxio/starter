@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './test/e2e',
+  testDir: './test/ui',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -10,8 +10,6 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
-    // We no longer need extraHTTPHeaders here, 
-    // because src/dev.ts auto-injects missing Keycloak auth tokens!
   },
   projects: [
     {

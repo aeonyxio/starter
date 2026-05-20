@@ -1,6 +1,6 @@
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert';
-import { CitizenService } from './citizen';
+import { CitizenService } from './citizen.js';
 
 describe('CitizenService', () => {
   test('returns parsed JSON on successful search fetch', async () => {
@@ -30,7 +30,8 @@ describe('CitizenService', () => {
 
     const api = new CitizenService('http://localhost:3001');
     
-    await assert.rejects(    async () => api.searchCitizens('Test'),
+    await assert.rejects(
+      async () => api.searchCitizens('Test'),
       /Citizen API error: Internal Server Error/
     );
 
