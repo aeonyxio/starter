@@ -1,28 +1,44 @@
 import type { FastifyPluginAsync } from "fastify";
+import { JourneyNavigator, JourneyStep } from "./navigator.js";
 
 const resultsRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get("/:journeyId/results", async (request, reply) => {
     const params = request.params as { journeyId: string };
-
-    // Automatically fetches data for the CURRENT journeyId in the path
     const journey = request.getJourneyData();
 
+    // 1. Validate State
     if (!journey || !journey.searchId) {
-      // If session expired or was never set, restart journey
-      return reply.redirect(`/${params.journeyId}/search`);
+      const fallbackPath = JourneyNavigator.getNextPath(
+        JourneyStep.RESULTS,
+        { isSessionExpired: true },
+        params.journeyId,
+      );
+      return reply.redirect(fallbackPath);
     }
+
+    // 2. Render
+    const finishActionUrl = JourneyNavigator.getPath(
+      JourneyStep.FINISH,
+      params.journeyId,
+    );
 
     return reply.view("results.njk", {
       journeyId: params.journeyId,
       searchId: journey.searchId,
+      finishAction: finishActionUrl,
     });
   });
 
-  // Example of using delete route at the end of a journey
+  // Dedicated finish endpoint to cleanly destroy the session
   fastify.post("/:journeyId/finish", async (request, reply) => {
-    // Cleans up memory manually when the user explicitly finishes
+    const params = request.params as { journeyId: string };
+
     request.deleteJourneyData();
-    return reply.redirect("/"); // Start entirely new journey
+
+    // Will return the user to the start ( / )
+    const endPath = JourneyNavigator.getPath(JourneyStep.FINISH);
+
+    return reply.redirect(endPath);
   });
 };
 
