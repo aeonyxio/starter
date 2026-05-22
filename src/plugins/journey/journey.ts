@@ -1,7 +1,6 @@
 import fp from "fastify-plugin";
-import { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest, RouteOptions } from "fastify";
 
-// Added a property to demonstrate updating session state
 export interface JourneyPayload {
   searchId?: string;
   step?: number;
@@ -15,64 +14,56 @@ export interface JourneyWrapper {
 declare module "@fastify/session" {
   interface FastifySessionObject {
     journeyData: Record<string, JourneyWrapper>;
-    // Explicitly defining this allows us to force-save deep object mutations
     modified?: boolean;
   }
 }
 
 declare module "fastify" {
   interface FastifyRequest {
-    getJourney(tabId: string): JourneyPayload | undefined;
-    setJourney(tabId: string, payload: JourneyPayload): void;
-    updateJourney(tabId: string, payload: Partial<JourneyPayload>): void;
+    getJourneyData(): JourneyPayload | undefined;
+    setJourneyData(payload: JourneyPayload): void;
+    updateJourneyData(payload: Partial<JourneyPayload>): void;
+    deleteJourneyData(): void;
   }
 }
 
-export const TAB_TTL_MS = 30 * 60 * 1000; // 30 minutes exported for tests
+export const TAB_TTL_MS = 30 * 60 * 1000;
 
-export const journeyPlugin: FastifyPluginAsync = fp(async (fastify) => {
-  fastify.decorateRequest("getJourney", function (tabId: string) {
-    const wrapper = this.session.journeyData[tabId];
-    if (!wrapper) return undefined;
+const journeyPluginAsync: FastifyPluginAsync = async (fastify) => {
+  // --- 1. AUTOMATIC PATH PARAM VALIDATION ---
+  fastify.addHook("onRoute", (routeOptions: RouteOptions) => {
+    if (routeOptions.url.includes(":journeyId")) {
+      const schema = routeOptions.schema ?? {};
+      const existingParams = (schema.params ?? {}) as Record<string, unknown>;
+      const existingProperties = (existingParams.properties ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const existingRequired = (
+        Array.isArray(existingParams.required) ? existingParams.required : []
+      ) as string[];
 
-    wrapper.lastAccessed = Date.now();
-    this.session.modified = true; // Force save to persist the new timestamp
-    return wrapper.payload;
+      schema.params = {
+        ...existingParams,
+        type: "object",
+        properties: {
+          ...existingProperties,
+          // Reject any bad characters. Allow only standard UUID/Alphanumeric formats
+          journeyId: {
+            type: "string",
+            pattern: "^[a-zA-Z0-9-]+$",
+            maxLength: 36,
+          },
+        },
+        required: Array.from(new Set([...existingRequired, "journeyId"])),
+      };
+
+      routeOptions.schema = schema;
+    }
   });
 
-  fastify.decorateRequest(
-    "setJourney",
-    function (tabId: string, payload: JourneyPayload) {
-      this.session.journeyData[tabId] = {
-        lastAccessed: Date.now(),
-        payload,
-      };
-      this.session.modified = true; // Force save new data
-    },
-  );
-
-  fastify.decorateRequest(
-    "updateJourney",
-    function (tabId: string, payload: Partial<JourneyPayload>) {
-      const wrapper = this.session.journeyData[tabId];
-      if (wrapper) {
-        // Merge new data with existing data
-        wrapper.payload = { ...wrapper.payload, ...payload };
-        wrapper.lastAccessed = Date.now();
-
-        // DEMONSTRATION OF SAVE:
-        // Because we altered a nested property inside journeyData, we MUST set
-        // modified = true to tell the session store to persist this update.
-        this.session.modified = true;
-      } else {
-        // Fallback: If it doesn't exist, create it.
-        this.setJourney(tabId, payload as JourneyPayload);
-      }
-    },
-  );
-
-  fastify.addHook("preHandler", async (request) => {
-    // 1. Guaranteed Initialization
+  // --- 2. GARBAGE COLLECTION HOOK ---
+  fastify.addHook("preHandler", async (request: FastifyRequest) => {
     if (!request.session.journeyData) {
       request.session.journeyData = {};
       request.session.modified = true;
@@ -81,19 +72,72 @@ export const journeyPlugin: FastifyPluginAsync = fp(async (fastify) => {
     const now = Date.now();
     let hasDeleted = false;
 
-    // 2. Lazy Garbage Collection
-    for (const [tabId, wrapper] of Object.entries(
-      request.session.journeyData,
-    )) {
+    for (const [id, wrapper] of Object.entries(request.session.journeyData)) {
       if (now - wrapper.lastAccessed > TAB_TTL_MS) {
-        delete request.session.journeyData[tabId];
+        delete request.session.journeyData[id];
         hasDeleted = true;
       }
     }
 
-    // 3. Only save if we actually pruned something
     if (hasDeleted) {
       request.session.modified = true;
     }
   });
-});
+
+  // --- 3. CONTEXT-AWARE DECORATORS ---
+
+  fastify.decorateRequest("getJourneyData", function (this: FastifyRequest) {
+    const params = this.params as { journeyId?: string };
+    if (!params.journeyId) return undefined;
+
+    const wrapper = this.session.journeyData[params.journeyId];
+    if (!wrapper) return undefined;
+
+    wrapper.lastAccessed = Date.now();
+    this.session.modified = true;
+    return wrapper.payload;
+  });
+
+  fastify.decorateRequest(
+    "setJourneyData",
+    function (this: FastifyRequest, payload: JourneyPayload) {
+      const params = this.params as { journeyId?: string };
+      if (!params.journeyId) return;
+
+      this.session.journeyData[params.journeyId] = {
+        lastAccessed: Date.now(),
+        payload,
+      };
+      this.session.modified = true;
+    },
+  );
+
+  fastify.decorateRequest(
+    "updateJourneyData",
+    function (this: FastifyRequest, payload: Partial<JourneyPayload>) {
+      const params = this.params as { journeyId?: string };
+      if (!params.journeyId) return;
+
+      const wrapper = this.session.journeyData[params.journeyId];
+      if (wrapper) {
+        wrapper.payload = { ...wrapper.payload, ...payload };
+        wrapper.lastAccessed = Date.now();
+        this.session.modified = true;
+      } else {
+        this.setJourneyData(payload as JourneyPayload);
+      }
+    },
+  );
+
+  fastify.decorateRequest("deleteJourneyData", function (this: FastifyRequest) {
+    const params = this.params as { journeyId?: string };
+    if (!params.journeyId) return;
+
+    if (this.session.journeyData[params.journeyId]) {
+      delete this.session.journeyData[params.journeyId];
+      this.session.modified = true;
+    }
+  });
+};
+
+export const journeyPlugin = fp(journeyPluginAsync);
